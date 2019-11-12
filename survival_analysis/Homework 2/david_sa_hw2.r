@@ -172,54 +172,64 @@ summary(back.model)
 # Final model
 flood.aft.w <- survreg(Surv(hour, reason == 1) ~ backup + servo + gear + slope, data = new_hurricane, dist = "weibull")
 
+# Interpretation of coefficients
+(exp(coef(flood.aft.w))-1)*100
+# Result: if backup system is present, flooding occurs 31.60% later. If servo mechanism present, flooding occurs 37.36% later. If gear box is present, flooding occurs 48.355% later. If slope of surroundingg area increases by 1 unit, flooding occurs 6.08% sooner.
 
 
 
 
 # Predicted Survival Quantiles #
-
-survprob.75.50.25 <-
+#predicted survival quantiles
+hurricane.survprob.75.50.25 <-
   predict(
     flood.aft.w,
     type = "quantile",
     se.fit = TRUE,
     p = c(0.25, 0.5, 0.75)
   )
-head(survprob.75.50.25$fit)
+head(hurricane.survprob.75.50.25$fit)
 
 # Predicted Mean Event Time #
-p.time.mean <-
+hurricane.p.time.mean <-
   predict(flood.aft.w, type = "response", se.fit = TRUE)
-head(p.time.mean$fit, n = 10)
+head(hurricane.p.time.mean$fit, n = 10)
 
 # Predicted Survival Probabilities #
-survprob.actual <- 1 - psurvreg(
-  new_hurricane$hour,
+hurricane.survprob.actual <- 1 - psurvreg(
+  hurricane$hour,
   mean = predict(flood.aft.w, type = "lp"),
   scale = flood.aft.w$scale,
   distribution = flood.aft.w$dist
 )
-head(survprob.actual, n = 10)
+head(hurricane.survprob.actual, n = 10)
 
-survprob.10wk <- 1 - psurvreg(
+hurricane.survprob.10wk <- 1 - psurvreg(
   10,
   mean = predict(flood.aft.w, type = "lp"),
   scale = flood.aft.w$scale,
   distribution = flood.aft.w$dist
 )
-head(survprob.10wk)
+head(hurricane.survprob.10wk)
 
 # Predicted Change in Event Time #
-new_time <-  qsurvreg(
-  1 - survprob.actual,
-  mean = predict(flood.aft.w, type = "lp") + coef(flood.aft.w)['fin'],
+hurricane.new_time <-  qsurvreg(
+  1 - hurricane.survprob.actual,
+  mean = predict(flood.aft.w, type = "lp") + coef(flood.aft.w)['servo'],
   scale = flood.aft.w$scale,
   distribution = flood.aft.w$dist
 )
 
-new_hurricane$new_time <- new_time
-new_hurricane$diff <- new_hurricane$new_time - new_hurricane$hour
+hurricane$new_time <- hurricane.new_time
+hurricane$diff <- hurricane$new_time - hurricane$hour
 
-head(data.frame(new_hurricane$hour, new_hurricane$new_time, new_hurricane$diff), n = 10)
+head(data.frame(hurricane$hour, hurricane$new_time, hurricane$diff),
+     n = 10)
 
 
+#subset hurricane dataframe so only shows the ones that didnt survive
+hurricane_sub <- hurricane[which(hurricane$hour != 48), ]
+View(hurricane_sub)
+
+#order by diff descending
+hurricane_sub <- arrange(hurricane_sub,-diff)
