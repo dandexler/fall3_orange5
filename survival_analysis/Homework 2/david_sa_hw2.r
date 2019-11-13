@@ -12,13 +12,20 @@ hurricane <- read_sas("hurricane.sas7bdat")
 # Removes H1:H48 variables, survive, and reason2
 #1-8, 58, 59 remain
 # backup, age, bridgecrane, servo, gear, trashrack, slope, elevation
-new_hurricane <- hurricane %>% select(1, 2, 3, 4, 5, 7, 8, 58, 59)
+new_hurricane <- hurricane %>% select(1, 2, 3, 4, 5, 6, 7, 8, 58, 59)
+
+
+
+#############################################
+# Distributions
+#############################################
+
 
 # Accelerated failure time model - LogNormal Distribution
-flood.aft.ln <- survreg(Surv(hour, reason == 1) ~ backup + age + bridgecrane + servo + gear + slope + elevation, data = new_hurricane, dist = 'lognormal')
+flood.aft.ln <- survreg(Surv(hour, reason == 1) ~ backup + age + bridgecrane + trashrack + servo + gear + slope + elevation, data = new_hurricane, dist = 'lognormal')
 
 # AFT - Weibull distribution
-flood.aft.w <- survreg(Surv(hour, reason == 1) ~ backup + age + bridgecrane + servo + gear + slope + elevation, data = new_hurricane, dist = 'weibull')
+flood.aft.w <- survreg(Surv(hour, reason == 1) ~ backup + age + bridgecrane + trashrack + servo + gear + slope + elevation, data = new_hurricane, dist = 'weibull')
 summary(flood.aft.w)
 # Results: Use Weibull instead of Exponential
 
@@ -26,7 +33,7 @@ summary(flood.aft.w)
 # Checking Distributions
 
 # Weibull distribution
-flood.aft.w <- flexsurvreg(Surv(hour, reason == 1) ~ backup + age + bridgecrane + servo + gear + slope + elevation, data = new_hurricane, dist = "weibull")
+flood.aft.w <- flexsurvreg(Surv(hour, reason == 1) ~ backup + age + bridgecrane+ trashrack + servo + gear + slope + elevation, data = new_hurricane, dist = "weibull")
 
 # Weibull cumulative hazard plot
 plot(
@@ -38,7 +45,8 @@ plot(
   bty = "n",
   xlab = "hour",
   ylab = "Cumulative Hazard",
-  main = "Weibull Distribution"
+  main = "Cumulative Hazard Plot for Flood Failure Type",
+  col= "steelblue3"
 )
 # Result: Good.
 
@@ -162,74 +170,141 @@ cbind(Tests, P_values)
 
 # Backward selection on variables by AIC. Recommendation: Use AIC vs p-values. Still rank by p-values if requested.
 
-flood.aft.w <- survreg(Surv(hour, reason == 1) ~ backup + age + bridgecrane + servo + gear + slope + elevation, data = new_hurricane, dist = "weibull")
+flood.aft.w <- survreg(Surv(hour, reason == 1) ~ backup + age + bridgecrane + servo + gear + trashrack + slope + elevation, data = new_hurricane, dist = "weibull")
 
 back.model <- step(flood.aft.w, direction = "backward")
 # To get variable p-values
 summary(back.model)
-# Result: Variables remaining: intercept, gear, backup, servo, slope
+# Result: Variables remaining: intercept, gear, backup, servo, slope, trashrack
+
+
+###########################################
+# Final Model
+###########################################
+
 
 # Final model
-flood.aft.w <- survreg(Surv(hour, reason == 1) ~ backup + servo + gear + slope, data = new_hurricane, dist = "weibull")
+flood.aft.w.final <- survreg(Surv(hour, reason == 1) ~ backup + servo + gear+ trashrack + slope, data = new_hurricane, dist = "weibull")
 
 # Interpretation of coefficients
-(exp(coef(flood.aft.w))-1)*100
-# Result: if backup system is present, flooding occurs 31.60% later. If servo mechanism present, flooding occurs 37.36% later. If gear box is present, flooding occurs 48.355% later. If slope of surroundingg area increases by 1 unit, flooding occurs 6.08% sooner.
+(exp(coef(flood.aft.w.final))-1)*100
+# Result: if backup system is present, flooding occurs 29.0087% later. If servo mechanism present, flooding occurs 36.95992% later. If gear box is present, flooding occurs 52.2502% later. If slope of surrounding area increases by 1 unit, flooding occurs 6.09% sooner. If trashrack is present, flooding occurs 21.74% sooner.
 
 
+############################################
+# Event Time Prediction
+############################################
 
 
-# Predicted Survival Quantiles #
-#predicted survival quantiles
-hurricane.survprob.75.50.25 <-
-  predict(
-    flood.aft.w,
-    type = "quantile",
-    se.fit = TRUE,
-    p = c(0.25, 0.5, 0.75)
-  )
-head(hurricane.survprob.75.50.25$fit)
-
-# Predicted Mean Event Time #
+# Predicted Mean Event Time 
 hurricane.p.time.mean <-
-  predict(flood.aft.w, type = "response", se.fit = TRUE)
+  predict(flood.aft.w.final, type = "response", se.fit = TRUE)
+
 head(hurricane.p.time.mean$fit, n = 10)
 
 # Predicted Survival Probabilities #
 hurricane.survprob.actual <- 1 - psurvreg(
-  hurricane$hour,
-  mean = predict(flood.aft.w, type = "lp"),
-  scale = flood.aft.w$scale,
-  distribution = flood.aft.w$dist
+  new_hurricane$hour,
+  mean = predict(flood.aft.w.final, type = "lp"),
+  scale = flood.aft.w.final$scale,
+  distribution = flood.aft.w.final$dist
 )
 head(hurricane.survprob.actual, n = 10)
 
-hurricane.survprob.10wk <- 1 - psurvreg(
-  10,
-  mean = predict(flood.aft.w, type = "lp"),
-  scale = flood.aft.w$scale,
-  distribution = flood.aft.w$dist
-)
-head(hurricane.survprob.10wk)
+# Predicted Change in Event Time
 
-# Predicted Change in Event Time #
-hurricane.new_time <-  qsurvreg(
+# Predicts change in event time if flooded pump had gear
+hurricane.new_time.gear <-  qsurvreg(
   1 - hurricane.survprob.actual,
-  mean = predict(flood.aft.w, type = "lp") + coef(flood.aft.w)['servo'],
-  scale = flood.aft.w$scale,
-  distribution = flood.aft.w$dist
+  mean = predict(flood.aft.w.final, type = "lp") + coef(flood.aft.w.final)['gear'],
+  scale = flood.aft.w.final$scale,
+  distribution = flood.aft.w.final$dist
 )
 
-hurricane$new_time <- hurricane.new_time
-hurricane$diff <- hurricane$new_time - hurricane$hour
+# Predicts change in event time if flooded pump had servo
+hurricane.new_time.servo <-  qsurvreg(
+  1 - hurricane.survprob.actual,
+  mean = predict(flood.aft.w.final, type = "lp") + coef(flood.aft.w.final)['servo'],
+  scale = flood.aft.w.final$scale,
+  distribution = flood.aft.w.final$dist
+)
 
-head(data.frame(hurricane$hour, hurricane$new_time, hurricane$diff),
-     n = 10)
+# Predicts change in event time if flooded pump had backup
+hurricane.new_time.backup <-  qsurvreg(
+  1 - hurricane.survprob.actual,
+  mean = predict(flood.aft.w.final, type = "lp") + coef(flood.aft.w.final)['backup'],
+  scale = flood.aft.w.final$scale,
+  distribution = flood.aft.w.final$dist
+)
+
+# Predicted change in event time if flooded pump had trashrack
+hurricane.new_time.trashrack <-  qsurvreg(
+  1 - hurricane.survprob.actual,
+  mean = predict(flood.aft.w.final, type = "lp") + coef(flood.aft.w.final)['trashrack'],
+  scale = flood.aft.w.final$scale,
+  distribution = flood.aft.w.final$dist
+)
 
 
-#subset hurricane dataframe so only shows the ones that didnt survive
-hurricane_sub <- hurricane[which(hurricane$hour != 48), ]
-View(hurricane_sub)
+#############################################################
+# Change in predicted times for gear
+#############################################################
 
-#order by diff descending
-hurricane_sub <- arrange(hurricane_sub,-diff)
+
+# Copy dataframe
+hurricane_gear_final <- data.frame(new_hurricane)
+
+# Create vector with new predicted failure time
+hurricane_gear_final$new_time <- hurricane.new_time.gear
+
+# Difference between actual failure time and predicted failure time
+hurricane_gear_final$diff <- hurricane_gear_final$new_time - hurricane_gear_final$hour
+
+# New df with only reason, gear, actual_fail (hour), pred_fail (new_time), diff
+gear_diff <- tibble('reason'=hurricane_gear_final$reason, 'gear'=hurricane_gear_final$gear, 'actual_fail'= hurricane_gear_final$hour, 'pred_fail'=hurricane_gear_final$new_time, 'diff'=hurricane_gear_final$diff)
+
+# Removes all fail types that are not flooding. Removes pumps that did not fail. Arranges by descending diff
+gear_diff <- gear_diff %>% filter(reason == 1, actual_fail != 48) %>% arrange(desc(diff))
+
+
+#############################################################
+# Change in predicted times for servo
+#############################################################
+
+
+# Copy dataframe
+hurricane_servo_final <- data.frame(new_hurricane)
+
+# Create vector with new predicted failure time
+hurricane_servo_final$new_time <- hurricane.new_time.servo
+
+# Difference between actual failure time and predicted failure time
+hurricane_servo_final$diff <- hurricane_servo_final$new_time - hurricane_servo_final$hour
+
+# New df with only reason, servo, actual_fail (hour), pred_fail (new_time), diff
+servo_diff <- tibble('reason'=hurricane_servo_final$reason, 'servo'=hurricane_servo_final$servo, 'actual_fail'= hurricane_servo_final$hour, 'pred_fail'=hurricane_servo_final$new_time, 'diff'=hurricane_servo_final$diff)
+
+# Removes all fail types that are not flooding. Removes pumps that did not fail. Arranges by descending diff
+servo_diff <- servo_diff %>% filter(reason == 1, actual_fail != 48) %>% arrange(desc(diff))
+
+
+#############################################################
+# Change in predicted times for backup
+#############################################################
+
+
+# Copy dataframe
+hurricane_backup_final <- data.frame(new_hurricane)
+
+# Create vector with new predicted failure time
+hurricane_backup_final$new_time <- hurricane.new_time.backup
+
+# Difference between actual failure time and predicted failure time
+hurricane_backup_final$diff <- hurricane_backup_final$new_time - hurricane_backup_final$hour
+
+# New df with only reason, backup, actual_fail (hour), pred_fail (new_time), diff
+backup_diff <- tibble('reason'=hurricane_backup_final$reason, 'servo'=hurricane_backup_final$backup, 'actual_fail'= hurricane_backup_final$hour, 'pred_fail'=hurricane_backup_final$new_time, 'diff'=hurricane_backup_final$diff)
+
+# Removes all fail types that are not flooding. Removes pumps that did not fail. Arranges by descending diff
+backup_diff <- backup_diff %>% filter(reason == 1, actual_fail != 48) %>% arrange(desc(diff))
+
