@@ -8,11 +8,12 @@ library(flexsurv)
 setwd('C:/Users/dande/Desktop/MAIN/Documents/NCState Advanced Analytics/Fall 2019/Fall 3/Survival Analysis/Homework/Homework 1')
 
 hurricane <- read_sas("hurricane.sas7bdat")
+hurricane <- cbind("index"=1:nrow(hurricane), hurricane)
 
 # Removes H1:H48 variables, survive, and reason2
 #1-8, 58, 59 remain
 # backup, age, bridgecrane, servo, gear, trashrack, slope, elevation
-new_hurricane <- hurricane %>% select(1, 2, 3, 4, 5, 6, 7, 8, 58, 59)
+new_hurricane <- hurricane %>% select(1, 2, 3, 4, 5, 6, 7, 8, 9, 59, 60)
 
 
 
@@ -250,6 +251,7 @@ hurricane.new_time.trashrack <-  qsurvreg(
 # Change in predicted times for gear
 #############################################################
 
+gear_upgrade_cost <- 75000
 
 # Copy dataframe
 hurricane_gear_final <- data.frame(new_hurricane)
@@ -261,16 +263,23 @@ hurricane_gear_final$new_time <- hurricane.new_time.gear
 hurricane_gear_final$diff <- hurricane_gear_final$new_time - hurricane_gear_final$hour
 
 # New df with only reason, gear, actual_fail (hour), pred_fail (new_time), diff
-gear_diff <- tibble('reason'=hurricane_gear_final$reason, 'gear'=hurricane_gear_final$gear, 'actual_fail'= hurricane_gear_final$hour, 'pred_fail'=hurricane_gear_final$new_time, 'diff'=hurricane_gear_final$diff)
+gear_diff <- tibble('reason'=hurricane_gear_final$reason, 'gear'=hurricane_gear_final$gear, 'actual_fail'= hurricane_gear_final$hour, 'pred_fail'=hurricane_gear_final$new_time, 'diff'=hurricane_gear_final$diff, 'cost_per_hour'=gear_upgrade_cost/hurricane_gear_final$diff, "index"=hurricane_gear_final$index)
 
 # Removes all fail types that are not flooding. Removes pumps that did not fail. Arranges by descending diff
-gear_diff <- gear_diff %>% filter(reason == 1, actual_fail != 48) %>% arrange(desc(diff))
+gear_diff <- gear_diff %>% filter(reason == 1,  gear == 0) %>% arrange(cost_per_hour)
+gear_diff['cumulative_cost']<- seq(from=75000, to=8025000, by = 75000)
+gear_diff <- gear_diff %>% filter(cumulative_cost <= 2500000)
+gear_diff
+
+setwd('C:/Users/dande/Desktop/MAIN/Documents/NCState Advanced Analytics/Fall 2019/Fall 3/Survival Analysis/Homework/Homework 2/')
+write.csv(x = gear_diff, file = "gear_diff_final.csv")
 
 
 #############################################################
 # Change in predicted times for servo
 #############################################################
 
+servo_upgrade_cost <- 150000
 
 # Copy dataframe
 hurricane_servo_final <- data.frame(new_hurricane)
@@ -282,16 +291,23 @@ hurricane_servo_final$new_time <- hurricane.new_time.servo
 hurricane_servo_final$diff <- hurricane_servo_final$new_time - hurricane_servo_final$hour
 
 # New df with only reason, servo, actual_fail (hour), pred_fail (new_time), diff
-servo_diff <- tibble('reason'=hurricane_servo_final$reason, 'servo'=hurricane_servo_final$servo, 'actual_fail'= hurricane_servo_final$hour, 'pred_fail'=hurricane_servo_final$new_time, 'diff'=hurricane_servo_final$diff)
+servo_diff <- tibble('reason'=hurricane_servo_final$reason, 'servo'=hurricane_servo_final$servo, 'actual_fail'= hurricane_servo_final$hour, 'pred_fail'=hurricane_servo_final$new_time, 'diff'=hurricane_servo_final$diff, 'cost_per_hour'=servo_upgrade_cost/hurricane_servo_final$diff, "index"=hurricane_servo_final$index)
 
 # Removes all fail types that are not flooding. Removes pumps that did not fail. Arranges by descending diff
-servo_diff <- servo_diff %>% filter(reason == 1, actual_fail != 48) %>% arrange(desc(diff))
+servo_diff <- servo_diff %>% filter(reason == 1,  servo == 0) %>% arrange(cost_per_hour)
+servo_diff['cumulative_cost']<- seq(from=150000, to=16050000, by = 150000)
+servo_diff <- servo_diff %>% filter(cumulative_cost <= 2500000)
+servo_diff
+
+setwd('C:/Users/dande/Desktop/MAIN/Documents/NCState Advanced Analytics/Fall 2019/Fall 3/Survival Analysis/Homework/Homework 2/')
+write.csv(x = servo_diff, file = "servo_diff_final.csv")
 
 
 #############################################################
 # Change in predicted times for backup
 #############################################################
 
+backup_upgrade_cost <- 100000
 
 # Copy dataframe
 hurricane_backup_final <- data.frame(new_hurricane)
@@ -303,8 +319,13 @@ hurricane_backup_final$new_time <- hurricane.new_time.backup
 hurricane_backup_final$diff <- hurricane_backup_final$new_time - hurricane_backup_final$hour
 
 # New df with only reason, backup, actual_fail (hour), pred_fail (new_time), diff
-backup_diff <- tibble('reason'=hurricane_backup_final$reason, 'servo'=hurricane_backup_final$backup, 'actual_fail'= hurricane_backup_final$hour, 'pred_fail'=hurricane_backup_final$new_time, 'diff'=hurricane_backup_final$diff)
+backup_diff <- tibble('reason'=hurricane_backup_final$reason, 'backup'=hurricane_backup_final$backup, 'actual_fail'= hurricane_backup_final$hour, 'pred_fail'=hurricane_backup_final$new_time, 'diff'=hurricane_backup_final$diff, 'cost_per_hour'=backup_upgrade_cost/hurricane_backup_final$diff, "index"=hurricane_backup_final$index)
 
 # Removes all fail types that are not flooding. Removes pumps that did not fail. Arranges by descending diff
-backup_diff <- backup_diff %>% filter(reason == 1, actual_fail != 48) %>% arrange(desc(diff))
+backup_diff <- backup_diff %>% filter(reason == 1,  backup == 0) %>% arrange(cost_per_hour)
+backup_diff['cumulative_cost']<- seq(from=100000, to=10700000, by = 100000)
+backup_diff <- backup_diff %>% filter(cumulative_cost <= 2500000)
+backup_diff
 
+setwd('C:/Users/dande/Desktop/MAIN/Documents/NCState Advanced Analytics/Fall 2019/Fall 3/Survival Analysis/Homework/Homework 2/')
+write.csv(x = backup_diff, file = "backup_diff_final.csv")
